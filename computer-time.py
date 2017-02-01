@@ -3,10 +3,21 @@
 import datetime as dt
 import logging
 from collections import OrderedDict
+import configparser
 
 import rumps
 from AppKit import NSObject, NSWorkspace
 from Foundation import NSDistributedNotificationCenter
+
+
+CONFIG_FILE = "computer_time.ini"
+
+INTERVAL_MENU = OrderedDict([
+            ("40 minutes", 40 * 60),
+            ("1 hour", 1 * 3600),
+            ("2 hours", 2 * 3600),
+            ("Custom...", None),
+        ])
 
 
 class ComputerTimeApp(rumps.App):
@@ -29,7 +40,10 @@ class ComputerTimeApp(rumps.App):
         self.alert_interval = 2 * 3600  # 2 hours
         self.break_interval = 3 * 60  # 3 minutes = minimal length of break to auto-reset timer
         self.alert_state = 0  # 1 - notification reached, 2 - alert reached
-        self.menu["Set interval"]["2 hours"].state = True
+        # Load config file
+        self.config = configparser.ConfigParser()
+        self.load_config()
+        self.mark_interval()
         self._register_notification()
 
     @rumps.timer(60)
@@ -72,6 +86,7 @@ class ComputerTimeApp(rumps.App):
 
     def set_interval(self, secs):
         self.alert_interval = secs
+        self.save_config()
         self.refresh()
 
     @rumps.clicked('Quit')
@@ -90,15 +105,34 @@ class ComputerTimeApp(rumps.App):
                 self.reset()
             self.t_idle = None
 
+    def save_config(self):
+        self.config.set('Setup', 'interval', str(self.alert_interval))
+        with self.open(CONFIG_FILE, "w") as f:
+            self.config.write(f)
+
+    def load_config(self):
+        try:
+            with self.open(CONFIG_FILE, "r") as f:
+                self.config.read_file(f)
+            self.alert_interval = self.config.getint('Setup', 'interval', fallback=self.alert_interval)
+        except FileNotFoundError:
+            # Prepare default config
+            self.config.add_section("Setup")
+
+    def mark_interval(self):
+        """Mark interval in menu according to current setting"""
+        for name, interval in INTERVAL_MENU.items():
+            if interval == self.alert_interval:
+                self.menu["Set interval"][name].state = True
+                break
+        else:
+            custom = self.menu["Set interval"]["Custom..."]
+            custom.state = True
+            custom.title = "Custom: %s seconds" % self.alert_interval
+
     def _build_interval_submenu(self):
-        menu_spec = OrderedDict([
-            ("40 minutes", 40 * 60),
-            ("1 hour", 1 * 3600),
-            ("2 hours", 2 * 3600),
-            ("Custom...", None),
-        ])
         menu = rumps.MenuItem("Set interval")
-        for title, value in menu_spec.items():
+        for title, value in INTERVAL_MENU.items():
             def cb(sender):
                 secs = sender.value
                 if not secs:
