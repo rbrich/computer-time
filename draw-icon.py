@@ -1,5 +1,17 @@
 #!/usr/bin/env python3
 
+"""
+Prepare menubar icon for Computer Time app, in PDF format.
+
+This will generate "pie clock" images for each state,
+ranging from 0 to 360 degrees with step of 15 degrees.
+
+The icon is drawn with default colors, which happens
+to be black stroke on white background. This is just
+fine for macOS' template icon mode.
+
+"""
+
 from reportlab.pdfgen import canvas
 
 
