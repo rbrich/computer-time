@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import os.path
 import datetime as dt
 import logging
 from collections import OrderedDict
@@ -10,7 +11,8 @@ from AppKit import NSObject, NSWorkspace
 from Foundation import NSDistributedNotificationCenter
 
 
-CONFIG_FILE = "computer_time.ini"
+CONFIG_FILE = "computer-time.ini"
+LOG_FILE = "computer-time.log"
 
 INTERVAL_MENU = OrderedDict([
             ("Pomodoro", 25),
@@ -200,8 +202,13 @@ class ComputerTimeApp(rumps.App):
                                              'NSWorkspaceDidWakeNotification', None)
 
 
-if __name__ == "__main__":
-    logging.basicConfig(filename='computer-time.log', level=logging.DEBUG,
+def main():
+    app_name = "Computer Time"
+    log_path = os.path.join(rumps.application_support(app_name), LOG_FILE)
+    logging.basicConfig(filename=log_path, level=logging.DEBUG,
                         format="%(asctime)s  %(levelname)s %(message)s")
-    #rumps.debug_mode(True)
-    ComputerTimeApp("Computer Time", icon="data/icon000.pdf", template=True).run()
+    ComputerTimeApp(app_name, icon="data/icon000.pdf", template=True).run()
+
+
+if __name__ == "__main__":
+    main()
