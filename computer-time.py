@@ -77,8 +77,8 @@ class ComputerTimeApp(rumps.App):
 
     @rumps.clicked("Silent mode")
     def silent_mode(self, sender):
-        # TODO: remember state (App Support config)
         sender.state = not sender.state
+        self.save_config()
 
     def set_interval(self, minutes):
         self.interval = minutes
@@ -103,6 +103,7 @@ class ComputerTimeApp(rumps.App):
 
     def save_config(self):
         self.config.set('Setup', 'interval', str(self.interval))
+        self.config.set('Setup', 'silent_mode', str(self.menu['Silent mode'].state))
         with self.open(CONFIG_FILE, "w") as f:
             self.config.write(f)
 
@@ -111,6 +112,7 @@ class ComputerTimeApp(rumps.App):
             with self.open(CONFIG_FILE, "r") as f:
                 self.config.read_file(f)
             self.interval = self.config.getint('Setup', 'interval', fallback=self.interval)
+            self.menu['Silent mode'].state = self.config.getboolean('Setup', 'silent_mode', fallback=False)
         except FileNotFoundError:
             # Prepare default config
             self.config.add_section("Setup")
