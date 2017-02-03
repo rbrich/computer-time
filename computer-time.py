@@ -23,6 +23,35 @@ INTERVAL_MENU = OrderedDict([
         ])
 
 
+class Config:
+
+    def __init__(self, filename):
+        self._filename = filename
+        self._parser = configparser.ConfigParser()
+        # Defaults
+        self.interval = 120  # maximum time before break
+        self.silent_mode = False
+
+    def load(self):
+        c = self._parser
+        try:
+            with open(self._filename, "r") as f:
+                c.read_file(f)
+        except FileNotFoundError:
+            # Prepare default config
+            c.add_section("Setup")
+            return
+        self.interval = c.getint('Setup', 'interval', fallback=self.interval)
+        self.silent_mode = c.getboolean('Setup', 'silent_mode', fallback=self.silent_mode)
+
+    def save(self):
+        c = self._parser
+        c.set('Setup', 'interval', str(self.interval))
+        c.set('Setup', 'silent_mode', str(self.silent_mode))
+        with open(self._filename, "w") as f:
+            c.write(f)
+
+
 class ComputerTimeApp(rumps.App):
 
     def __init__(self, *args, **kwargs):
@@ -36,23 +65,25 @@ class ComputerTimeApp(rumps.App):
             "Quit",
         ]
         super(ComputerTimeApp, self).__init__(*args, menu=menu_spec, quit_button=None, **kwargs)
-        logging.info("start (program init)")
+        # Setup auxiliary variables
         self.t_start = dt.datetime.now()
         self.t_idle = None
-        self.interval = 120  # maximum time before break
         self.min_break = 3   # minimal length of break to auto-reset timer
         self.notified = False  # notification was fired (there should be only one per interval)
         # Load config file
-        self.config = configparser.ConfigParser()
-        self.load_config()
+        self.config = Config(os.path.join(self._application_support, CONFIG_FILE))
+        self.config.load()
+        self.menu['Silent mode'].state = self.config.silent_mode
         self.mark_interval()
+        # Register for screensaver / sleep notifications
         self._register_notification()
+        logging.info("start (program init)")
 
     @rumps.timer(60)
     def refresh(self, _=None):
         # Draw pie clock
         t_now = dt.datetime.now()
-        interval = self.interval * 60  # interval converted to seconds
+        interval = self.config.interval * 60  # interval converted to seconds
         delta = (t_now - self.t_start).total_seconds()
         delta_str = "%d:%02d" % (delta // 3600, (delta // 60) % 60)
         angle = int(360 / 15 * (delta / interval)) * 15
@@ -62,7 +93,7 @@ class ComputerTimeApp(rumps.App):
         self.icon = "data/icon%03d.pdf" % angle
         self.menu['Time'].title = "Time: %s" % delta_str
         # Silent mode or idle - no notifications
-        if self.menu['Silent mode'].state or self.t_idle:
+        if self.config.silent_mode or self.t_idle:
             return
         # Notification
         if not self.notified and delta >= interval:
@@ -80,11 +111,12 @@ class ComputerTimeApp(rumps.App):
     @rumps.clicked("Silent mode")
     def silent_mode(self, sender):
         sender.state = not sender.state
-        self.save_config()
+        self.config.silent_mode = sender.state
+        self.config.save()
 
     def set_interval(self, minutes):
-        self.interval = minutes
-        self.save_config()
+        self.config.interval = minutes
+        self.config.save()
         self.refresh()
 
     @rumps.clicked('Quit')
@@ -103,32 +135,16 @@ class ComputerTimeApp(rumps.App):
                 self.reset()
             self.t_idle = None
 
-    def save_config(self):
-        self.config.set('Setup', 'interval', str(self.interval))
-        self.config.set('Setup', 'silent_mode', str(self.menu['Silent mode'].state))
-        with self.open(CONFIG_FILE, "w") as f:
-            self.config.write(f)
-
-    def load_config(self):
-        try:
-            with self.open(CONFIG_FILE, "r") as f:
-                self.config.read_file(f)
-            self.interval = self.config.getint('Setup', 'interval', fallback=self.interval)
-            self.menu['Silent mode'].state = self.config.getboolean('Setup', 'silent_mode', fallback=False)
-        except FileNotFoundError:
-            # Prepare default config
-            self.config.add_section("Setup")
-
     def mark_interval(self):
         """Mark interval in menu according to current setting"""
         for name, interval in INTERVAL_MENU.items():
-            if interval == self.interval:
+            if interval == self.config.interval:
                 self.menu["Set interval"][name].state = True
                 break
         else:
             custom = self.menu["Set interval"]["Custom..."]
             custom.state = True
-            custom.title = "Custom: %s minutes" % self.interval
+            custom.title = "Custom: %s minutes" % self.config.interval
 
     def _build_interval_submenu(self):
         menu = rumps.MenuItem("Set interval")
@@ -138,7 +154,8 @@ class ComputerTimeApp(rumps.App):
                 if not minutes:
                     dlg = rumps.Window("Enter interval length in minutes:",
                                        "Custom interval",
-                                       str(self.interval), dimensions=(320, 120), cancel=True)
+                                       str(self.config.interval),
+                                       dimensions=(320, 120), cancel=True)
                     while True:
                         res = dlg.run()
                         if res.clicked == 0:
