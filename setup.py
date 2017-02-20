@@ -9,6 +9,7 @@ OPTIONS = {
 }
 
 setup(
+    name='Computer Time',
     app=['computer-time.py'],
     data_files=['data'],
     options={'py2app': OPTIONS},

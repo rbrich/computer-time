@@ -17,9 +17,9 @@ Dependencies:
 - rumps
 - reportlab (to generate PDF icons)
 
-Prepare data (icons):
+Generate PDF icon:
 
-    make data
+    make icon
 
 Create App:
 
@@ -32,7 +32,7 @@ Development
 Run in alias mode:
 
     python3 setup.py py2app -A
-    ./dist/computer-time.app/Contents/MacOS/computer-time
+    ./dist/Computer\ Time.app/Contents/MacOS/Computer\ Time
 
 References:
 - Screensaver notifications:

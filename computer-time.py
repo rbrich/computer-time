@@ -7,12 +7,15 @@ from collections import OrderedDict
 import configparser
 
 import rumps
-from AppKit import NSObject, NSWorkspace
+from AppKit import NSObject, NSWorkspace, NSRunningApplication
 from Foundation import NSDistributedNotificationCenter
 
 
 CONFIG_FILE = "computer-time.ini"
 LOG_FILE = "computer-time.log"
+LAUNCHD_NAME = "cz.lgv.computer-time.plist"
+LAUNCHD_PATH = os.path.expanduser("~/Library/LaunchAgents/" + LAUNCHD_NAME)
+LAUNCHD_TEMPLATE = "data/launchd-template.xml"
 
 INTERVAL_MENU = OrderedDict([
             ("Pomodoro", 25),
@@ -21,6 +24,18 @@ INTERVAL_MENU = OrderedDict([
             ("2 hours", 120),
             ("Custom...", None),
         ])
+
+
+def get_executable_path():
+    # Try to get the path from Cocoa
+    r_app = NSRunningApplication.currentApplication()
+    if r_app.bundleIdentifier().endswith(".ComputerTime"):
+        path = r_app.executableURL().path()
+    else:
+        # Fallback to python script path
+        path = os.path.abspath(__file__)
+        logging.info("script file: %s", __file__)
+    return path
 
 
 class Config:
@@ -62,6 +77,7 @@ class ComputerTimeApp(rumps.App):
             "Silent mode",
             self._build_interval_submenu(),
             None,
+            "Run at login",
             "Quit",
         ]
         super(ComputerTimeApp, self).__init__(*args, menu=menu_spec, quit_button=None, **kwargs)
@@ -73,7 +89,8 @@ class ComputerTimeApp(rumps.App):
         # Load config file
         self.config = Config(os.path.join(self._application_support, CONFIG_FILE))
         self.config.load()
-        self.menu['Silent mode'].state = self.config.silent_mode
+        self.menu["Silent mode"].state = self.config.silent_mode
+        self.menu["Run at login"].state = os.path.exists(LAUNCHD_PATH)
         self.mark_interval()
         # Register for screensaver / sleep notifications
         self._register_notification()
@@ -118,6 +135,20 @@ class ComputerTimeApp(rumps.App):
         self.config.interval = minutes
         self.config.save()
         self.refresh()
+
+    @rumps.clicked('Run at login')
+    def run_at_login(self, sender):
+        enabled = not sender.state
+        if enabled:
+            # Enable by creating launchd .plist file from template
+            with open(LAUNCHD_TEMPLATE, 'r') as f:
+                template = f.read()
+            with open(LAUNCHD_PATH, 'w') as f:
+                f.write(template.format(get_executable_path()))
+        else:
+            # Disable by removing the .plist file from launchd
+            os.unlink(LAUNCHD_PATH)
+        sender.state = enabled
 
     @rumps.clicked('Quit')
     def quit(self, _):

@@ -3,4 +3,4 @@ build/
 dist/
 
 computer-time.log
-data/
+data/*.pdf

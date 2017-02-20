@@ -1,6 +1,6 @@
-data:
-	mkdir -p data
+icon:
 	./draw-icon.py
 
-dist-clean:
-	rm -rf build dist data
+distclean:
+	rm -rf build dist
+	rm -f data/*.pdf
